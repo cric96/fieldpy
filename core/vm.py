@@ -1,5 +1,5 @@
-from typing import List, Tuple
-
+from abc import abstractmethod, ABC
+from typing import List, Tuple, Dict, Any, Callable, TypeVar, Generic, Iterable
 from core import Export, Path, Slot
 
 
@@ -61,19 +61,113 @@ class VM:
         self.send({self.context.id: local})
 
     @property
-    def received(self):
+    def received(self) -> Dict[int, Any]:
         path = self.status.path
-        return {nid: export_data.get(path) for nid, export_data in self.context.exports.items() if path in export_data.paths}
+        return {nid: export_data.get(path) for nid, export_data in self.context.exports.items() if
+                path in export_data.paths}
+
+    def neighbors_aligned(self) -> Iterable[int]:
+        return self.received.keys()
 
     def exit(self):
         self.status = self.status.pop().increment_index()
 
+T = TypeVar('T')
+A = TypeVar('A')
 
-class Context:
-    def __init__(self, exports: dict[int, Export], id: int):
-        self.exports = exports
-        self.id = id
+
+class Field(Generic[T]):
+    def __init__(self, vm: VM, data: Dict[int, T]):
+        """
+        Initialize a Field object.
+
+        Args:
+            vm (VM): The VM object associated with the field.
+            data (Dict[int, T]): The data dictionary containing values for each node ID.
+        """
+        self.vm = vm
+        self.data = data
 
     @property
+    def local(self) -> T:
+        """
+        Get the local value of the field for the current node.
+
+        Returns:
+            T: The local value of the field.
+        """
+        return self.data.get(self.vm.context.id)
+
+    def current_aligned_without_self(self) -> Dict[int, T]:
+        """
+        Get the values of the field for the aligned neighbors, excluding the current node.
+
+        Returns:
+            Dict[int, T]: The values of the field for the aligned neighbors.
+        """
+        neighbors = self.vm.neighbors_aligned()
+        return {nid: self.data.get(nid) for nid in neighbors if nid != self.vm.context.id}
+
+    def hood(self, default: T, operation: Callable[[Tuple[A, T]], T]) -> A:
+        """
+        Perform a neighborhood operation on the field values.
+
+        Args:
+            default (T): The default value to return if there are no aligned neighbors.
+            operation (Callable[[Tuple[A, T]], T]): The operation to perform on each neighbor value.
+
+        Returns:
+            A: The result of the neighborhood operation.
+        """
+        current_neigh = self.current_aligned_without_self()
+        if not current_neigh:
+            return default
+
+        acc = None
+        for nid, value in current_neigh.items():
+            acc = value if acc is None else operation((nid, self.vm.received.get(nid)))
+        return acc
+
+    def fold(self, default: T, operation: Callable[[T, T], T]) -> T:
+        """
+        Perform a fold operation on the field values.
+
+        Args:
+            default (T): The default value to start the fold operation.
+            operation (Callable[[T, T], T]): The operation to perform on each value during the fold.
+
+        Returns:
+            T: The result of the fold operation.
+        """
+        current_neigh = self.current_aligned_without_self()
+        acc = default
+        for value in current_neigh.values():
+            acc = operation(acc, value)
+        return acc
+
+    def without_self(self):
+        """
+        Create a new Field object without the value of the current node.
+
+        Returns:
+            Field: A new Field object without the value of the current node.
+        """
+        return Field(self.vm, {nid: value for nid, value in self.data.items() if nid != self.vm.context.id})
+
+    def __repr__(self):
+        return str(self.data)
+
+class Context(ABC):
+    @abstractmethod
     def neighbours(self) -> List[int]:
-        return list({id for id in self.exports})
+        pass
+
+    @abstractmethod
+    def sensorData(self, what: str) -> Any:
+        pass
+
+    @abstractmethod
+    def neighboringSensorData(self, what: str) -> Field[Any]:
+        pass
+
+    
