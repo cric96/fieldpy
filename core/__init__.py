@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional
+from collections import deque
+
 
 class Slot:
     """
@@ -61,9 +63,10 @@ class Slot:
         return hash((self.tag, self.index))
 
 
+
 class Path:
     """
-    The Path class represents a path consisting of a list of slots.
+    The Path class represents a path consisting of a deque of slots.
     It is used to identify a specific path in an AST, essential for the export mechanism and alignment.
     e.g., giving the following expression:
     def foo():
@@ -71,20 +74,22 @@ class Path:
         return foo()
     func1()
     A path to the overall expression is [Slot('func1', 0), Slot('foo', 0)].
+
     Attributes:
-        path: A list of slots forming the path.
+        path: A deque of slots forming the path.
     """
 
     def __init__(self, path=None):
         """
-        Constructs a new Path with the given list of slots.
+        Constructs a new Path with the given deque of slots.
 
         Args:
-            path: A list of slots forming the path. If not provided, an empty list is used.
+            path: A deque of slots forming the path. If not provided, an empty deque is used.
         """
         if path is None:
-            path = []
-        self.path = path
+            self.path = deque()
+        else:
+            self.path = deque([path])
 
     def push(self, slot: Slot) -> 'Path':
         """
@@ -96,7 +101,12 @@ class Path:
         Returns:
             A new Path with the added slot.
         """
-        return Path([slot] + self.path)
+
+        new_path = self.path.copy()
+        new_path.appendleft(slot)
+        result = Path()
+        result.path = new_path
+        return result
 
     def pull(self) -> 'Path':
         """
@@ -105,7 +115,9 @@ class Path:
         Returns:
             A new Path without the first slot.
         """
-        return Path(self.path[1:])
+        new_path = self.path.copy()
+        new_path.popleft()
+        return Path(new_path)
 
     def __str__(self):
         """
@@ -123,7 +135,7 @@ class Path:
         Returns:
             A string representation of the list of slots.
         """
-        return str(self)
+        return str(list(self.path))
 
     def __eq__(self, other: Any) -> bool:
         """

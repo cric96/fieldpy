@@ -63,10 +63,13 @@ class VM:
     @property
     def received(self) -> Dict[int, Any]:
         path = self.status.path
+
         return {nid: export_data.get(path) for nid, export_data in self.context.exports.items() if
-                path in export_data.paths}
+            path in export_data.paths}
 
     def neighbors_aligned(self) -> Iterable[int]:
+        if(self.status.path == Path()):
+            return self.context.neighbours()
         return self.received.keys()
 
     def exit(self):
@@ -124,8 +127,8 @@ class Field(Generic[T]):
             return default
 
         acc = None
-        for nid, value in current_neigh.items():
-            acc = value if acc is None else operation((nid, self.vm.received.get(nid)))
+        for value in current_neigh.values():
+            acc = value if acc is None else operation((acc, value))
         return acc
 
     def fold(self, default: T, operation: Callable[[T, T], T]) -> T:
