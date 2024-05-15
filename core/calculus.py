@@ -1,5 +1,8 @@
+from typing import TypeVar, Callable
+
 from core.vm import VM, Field
 
+T = TypeVar('T')
 
 class FieldCalculus:
     """
@@ -9,7 +12,7 @@ class FieldCalculus:
     def __init__(self, vm: VM):
         self.vm = vm
 
-    def rep(self, init, update):
+    def rep(self, init: Callable[[], T], update: Callable[[T], T]) -> T:
         """
         Performs a replication operation.
 
@@ -31,7 +34,7 @@ class FieldCalculus:
         self.vm.exit()
         return updated
 
-    def mid(self):
+    def mid(self) -> int:
         """
         Returns the ID of the current context.
 
@@ -40,7 +43,7 @@ class FieldCalculus:
         """
         return self.vm.context.id
 
-    def nbr(self, query) -> Field:
+    def nbr(self, query: T) -> Field[T]:
         """
         Sends a query to the neighbors and returns the received data as a Field object.
 
@@ -60,7 +63,7 @@ class FieldCalculus:
 
         return Field(self.vm, received)
 
-    def branch(self, condition, then, or_else):
+    def branch(self, condition: Callable[[], bool], then: Callable[[], T], or_else: Callable[[], T]) -> T:
         """
         Performs a branching operation based on a condition.
 

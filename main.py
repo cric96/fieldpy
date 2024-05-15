@@ -38,8 +38,8 @@ if __name__ == '__main__':
         return old + 1
 
     print(F.mid())
-    print(F.rep(init, counter))
+    print(F.rep(lambda: 0, counter))
     vm.reset(SimpleContext(vm.out_exports, 0))
-    print(F.rep(init, counter))
+    print(F.rep(lambda: 0, counter))
     vm.reset(SimpleContext(vm.out_exports, 0))
-    print(F.rep(init, counter))
+    print(F.rep(lambda: 0, counter))
