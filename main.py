@@ -7,13 +7,15 @@ from core.vm import VM, Context, Field
 
 class SimpleContext(Context):
     def __init__(self, exports: dict[int, Export], id: int):
-        self.exports = exports
+        self._exports = exports
         self.id = id
 
-    @property
-    def neighbours(self) -> List[int]:
-        return list({id for id in self.exports})
 
+    def neighbours(self) -> List[int]:
+        return list({id for id in self.exports()})
+
+    def exports(self) -> dict[int, Export]:
+        return self._exports
     def sensorData(self, what: str) -> Any:
         pass
 
@@ -31,7 +33,7 @@ if __name__ == '__main__':
         return 0
 
     def counter(old: int) -> int:
-        data = F.nbr(lambda: old)
+        data = F.nbr(old)
         print("NBR = " + str(data))
         return old + 1
 

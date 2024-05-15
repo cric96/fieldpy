@@ -40,7 +40,7 @@ class FieldCalculus:
         """
         return self.vm.context.id
 
-    def nbr(self, query):
+    def nbr(self, query) -> Field:
         """
         Sends a query to the neighbors and returns the received data as a Field object.
 
@@ -51,21 +51,23 @@ class FieldCalculus:
             A Field object containing the received data.
         """
         self.vm.enter('nbr')
-        data = query()
-        toSend = {nid: data for nid in self.vm.context.neighbours}
-        self.vm.send(toSend)
-        self.vm.exit()
+        data = query
+        to_send = {nid: data for nid in self.vm.context.neighbours()}
+        self.vm.send(to_send)
         received = self.vm.received
+        received.update({self.vm.context.id: data})
+        self.vm.exit()
+
         return Field(self.vm, received)
 
-    def branch(self, condition, then, orElse):
+    def branch(self, condition, then, or_else):
         """
         Performs a branching operation based on a condition.
 
         Args:
             condition: A function that evaluates the condition.
             then: A function to be executed if the condition is True.
-            orElse: A function to be executed if the condition is False.
+            or_else: A function to be executed if the condition is False.
 
         Returns:
             The result of the executed function.
@@ -73,6 +75,6 @@ class FieldCalculus:
         evaluated = condition()
         tag = 'branch-' + str(evaluated)
         self.vm.enter(tag)
-        data = then() if evaluated else orElse()
+        data = then() if evaluated else or_else()
         self.vm.exit()
         return data

@@ -63,13 +63,14 @@ class VM:
     @property
     def received(self) -> Dict[int, Any]:
         path = self.status.path
-
-        return {nid: export_data.get(path) for nid, export_data in self.context.exports.items() if
+        return {nid: export_data.get(path) for nid, export_data in self.context.exports().items() if
             path in export_data.paths}
 
     def neighbors_aligned(self) -> Iterable[int]:
-        if(self.status.path == Path()):
-            return self.context.neighbours()
+        if self.status.path == Path():
+            received = self.received
+            received.update({self.context.id: None})
+            return received.keys()
         return self.received.keys()
 
     def exit(self):
@@ -111,7 +112,17 @@ class Field(Generic[T]):
         neighbors = self.vm.neighbors_aligned()
         return {nid: self.data.get(nid) for nid in neighbors if nid != self.vm.context.id}
 
-    def hood(self, default: T, operation: Callable[[Tuple[A, T]], T]) -> A:
+    def current_aligned(self) -> Dict[int, T]:
+        """
+        Get the values of the field for the aligned neighbors, including the current node.
+
+        Returns:
+            Dict[int, T]: The values of the field for the aligned neighbors.
+        """
+        neighbors = self.vm.neighbors_aligned()
+        return {nid: self.data.get(nid) for nid in neighbors}
+
+    def hood(self, default: T, operation: Callable[[A, T], T]) -> A:
         """
         Perform a neighborhood operation on the field values.
 
@@ -122,16 +133,16 @@ class Field(Generic[T]):
         Returns:
             A: The result of the neighborhood operation.
         """
-        current_neigh = self.current_aligned_without_self()
+        current_neigh = self.current_aligned()
         if not current_neigh:
             return default
 
         acc = None
         for value in current_neigh.values():
-            acc = value if acc is None else operation((acc, value))
-        return acc
+            acc = value if acc is None else operation(acc, value)
+        return acc if acc is not None else default
 
-    def fold(self, default: T, operation: Callable[[T, T], T]) -> T:
+    def fold(self, default: T, operation: Callable[[A, T], T]) -> A:
         """
         Perform a fold operation on the field values.
 
@@ -142,7 +153,7 @@ class Field(Generic[T]):
         Returns:
             T: The result of the fold operation.
         """
-        current_neigh = self.current_aligned_without_self()
+        current_neigh = self.current_aligned()
         acc = default
         for value in current_neigh.values():
             acc = operation(acc, value)
@@ -161,6 +172,9 @@ class Field(Generic[T]):
         return str(self.data)
 
 class Context(ABC):
+    @abstractmethod
+    def exports(self) -> Dict[int, Export]:
+        pass
     @abstractmethod
     def neighbours(self) -> List[int]:
         pass

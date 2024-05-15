@@ -1,21 +1,7 @@
 import unittest
 from core import Path, Slot, Export  # Assuming these are implemented somewhere
 from core.vm import VMStatus, Field, Context, VM  # Assuming your code is in 'your_module.py'
-
-
-class ContextMock(Context):
-    def __init__(self, id, exports):
-        self.id = id
-        self.exports = exports
-
-    def neighbours(self):
-        return [1, 2, 3]
-
-    def sensorData(self, what):
-        return f"sensor_{what}"
-
-    def neighboringSensorData(self, what):
-        return Field(self, {1: f"neigh_sensor_{what}_1", 2: f"neigh_sensor_{what}_2", 3: f"neigh_sensor_{what}_3"})
+from tests import ContextMock
 
 
 class TestVMStatus(unittest.TestCase):
@@ -71,7 +57,7 @@ class TestVM(unittest.TestCase):
         self.assertEqual(self.vm.out_exports[self.mid].get(self.vm.status.path), "local")
 
     def test_received(self):
-        self.context.exports[self.mid].put(self.vm.status.path, "data")
+        self.context.exports()[self.mid].put(self.vm.status.path, "data")
         self.assertEqual(self.vm.received, {1: "data"})
 
     def test_neighbors_aligned(self):
@@ -80,7 +66,7 @@ class TestVM(unittest.TestCase):
         self.vm = VM(self.context)
         # Assuming the neighbors are 1, 2, 3, add a data
         for i in range(1, 4):
-            self.context.exports[i].put(self.vm.status.path, i)
+            self.context.exports()[i].put(self.vm.status.path, i)
         self.assertEqual(list(self.vm.neighbors_aligned()), [1, 2, 3])
 
     def test_neighbors_not_aligned(self):
@@ -89,9 +75,9 @@ class TestVM(unittest.TestCase):
         self.vm = VM(self.context)
         # Assuming the neighbors are 1, 2, 3, add a data
         for i in range(1, 3):
-            self.context.exports[i].put(self.vm.status.path, i)
+            self.context.exports()[i].put(self.vm.status.path, i)
         # Remove the data for one neighbor
-        self.context.exports[3].put(self.vm.status.path.push(Slot("foo", 0)), 3)
+        self.context.exports()[3].put(self.vm.status.path.push(Slot("foo", 0)), 3)
         self.assertEqual(list(self.vm.neighbors_aligned()), [1, 2])
     def test_exit(self):
         self.vm.enter("tag")
@@ -100,7 +86,7 @@ class TestVM(unittest.TestCase):
 
 class TestField(unittest.TestCase):
     def setUp(self):
-        self.context = ContextMock(1, {1: Export(), 2: Export(), 3: Export()})
+        self.context = ContextMock(1, {1: Export(), 2: Export({Path(): 0}), 3: Export({Path(): 0})})
         self.vm = VM(self.context)
         self.field = Field(self.vm, {1: 10, 2: 20, 3: 30})
 
@@ -111,12 +97,46 @@ class TestField(unittest.TestCase):
         self.assertEqual(self.field.current_aligned_without_self(), {2: 20, 3: 30})
 
     def test_hood(self):
-        result = self.field.hood(0, lambda x: x[1])
-        self.assertEqual(result, 30)
+        result = self.field.hood(0, lambda acc, x: acc + x)
+        self.assertEqual(result, 60)
 
     def test_fold(self):
         result = self.field.fold(0, lambda acc, x: acc + x)
-        self.assertEqual(result, 50)
+        self.assertEqual(result, 60)
+
+    def test_without_self(self):
+        new_field = self.field.without_self()
+        self.assertEqual(new_field.data, {2: 20, 3: 30})
+
+
+class TestFieldReification(unittest.TestCase):
+    def setUp(self):
+        export_1 = Export({Path(Slot("align", 0)): 10})
+        export_2 = Export({Path(Slot("align", 0)): 20})
+        export_3 = Export({Path(Slot("dealing", 0)): 30})
+        self.context = ContextMock(1, {1: export_1, 2: export_2, 3: export_3})
+        self.vm = VM(self.context)
+        self.vm.enter("align")
+        self.field = Field(self.vm, {1: 10, 2: 20, 3: 30})
+
+    def test_local(self):
+        self.assertEqual(self.field.local, 10)
+
+    def test_current_aligned_without_self(self):
+        self.assertEqual(self.field.current_aligned_without_self(), {2: 20})
+
+    def test_hood(self):
+        result = self.field.hood(0, lambda acc, x: acc + x)
+        self.assertEqual(result, 30) ## 10 + 20
+
+    def test_fold(self):
+        result = self.field.fold(0, lambda acc, x: acc + x)
+        self.assertEqual(result, 30) ## 10 + 20
+
+    def empty_field(self):
+        self.vm.enter("out")
+        result = self.field.hood(0, lambda acc, x: acc + x)
+        self.assertEqual(result, 0)
 
     def test_without_self(self):
         new_field = self.field.without_self()
